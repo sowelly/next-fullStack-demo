@@ -8,12 +8,12 @@ const { Header, Content, Footer } = Layout;
 
 const items = [
     {
-        key: '/home',
+        key: '/',
         label: `home`,
     },
     {
-        key: '/dashboard',
-        label: `dashboard`,
+        key: '/todoList',
+        label: `todoList`,
     },
 ]
 
