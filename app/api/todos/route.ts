@@ -24,7 +24,6 @@ function randomBigInt() {
 
 export async function POST(req: NextRequest) {
     const id = randomBigInt()
-    console.log('POST-id', id)
     try {
         const {error} = await supabase.from("todos").insert({
             id,

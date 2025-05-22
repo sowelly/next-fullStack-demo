@@ -1,5 +1,5 @@
 import React, {Suspense} from 'react';
-import ListCom from "../components/list";
+import ListCom from "./list";
 
 export default async () => {
     const res = await fetch('http://localhost:3000/api/todos')
