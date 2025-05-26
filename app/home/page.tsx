@@ -42,7 +42,6 @@ export default function HomeLayout() {
 
 
   return <ChatContext.Provider value={{sideOpen, setSideOpen}}>
-
     <Splitter>
       <Splitter.Panel size={sideOpen ? sizes[0] : 0} resizable={false}>
         <Sider/>
@@ -56,7 +55,6 @@ export default function HomeLayout() {
         </div>
       </Splitter.Panel>
     </Splitter>
-
     <SettingModal/>
   </ChatContext.Provider>
 }

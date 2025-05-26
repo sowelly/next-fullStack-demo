@@ -14,7 +14,6 @@ export default () => {
     const insert = async (value) => {
         const res = await fetch('http://169.254.151.235:3000/api/todos', {method: 'POST', body: value})
         const {data} = await res.json()
-        console.log('insert', data)
         message.success('操作成功')
         setOpen(false)
     }

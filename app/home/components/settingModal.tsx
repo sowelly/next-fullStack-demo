@@ -1,16 +1,12 @@
 import React, {useEffect, useState} from 'react';
-import { Modal} from 'antd';
+import {Modal} from 'antd';
 import {useLocalStorageState} from 'ahooks';
 import Setting from "./setting";
+import {userConfigStore} from "../../../store/userConfigStore";
 
 const SettingModal: React.FC = () => {
-  const [settingState, setSettingState] = useLocalStorageState<boolean>(
-    'user-has-setting',
-    {
-      defaultValue: false,
-    },
-  );
-
+  const apiKey = userConfigStore(s => s.apiKey)
+  const hasHydrated = userConfigStore(s => s._hasHydrated)
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const showModal = () => {
@@ -19,24 +15,24 @@ const SettingModal: React.FC = () => {
 
   const handleOk = () => {
     setIsModalOpen(false);
-    setSettingState(true)
   };
 
   const handleCancel = () => {
     setIsModalOpen(false);
   };
 
-  const checkSetting = () => {
-    showModal()
-  }
   const setCallback = () => {
     setIsModalOpen(false)
-    setSettingState(true)
   }
 
   useEffect(() => {
-    if (!settingState) checkSetting()
-  }, [checkSetting, settingState]);
+    if (hasHydrated) {
+      if (!apiKey) {
+        showModal()
+      }
+    }
+
+  }, [hasHydrated, apiKey]);
 
   return (
     <>

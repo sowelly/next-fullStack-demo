@@ -95,6 +95,27 @@ export function useIndexedDB<T = any>(dbName = 'chat_db', storeName = 'chats') {
       }
     });
   }, []);
+  // 更新msg
+  const updateMsg = useCallback((id: string, updateData: Partial<T>): Promise<void> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const store = getStore('readwrite');
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          const oldData = getReq.result;
+          if (!oldData) return reject('Item not found');
+
+          const newData = { ...oldData, ...updateData };
+          const putReq = store.put(newData);
+          putReq.onsuccess = () => resolve();
+          putReq.onerror = () => reject(putReq.error);
+        };
+        getReq.onerror = () => reject(getReq.error);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }, []);
 
   // 删除
   const remove = useCallback((id: string): Promise<void> => {
@@ -116,6 +137,7 @@ export function useIndexedDB<T = any>(dbName = 'chat_db', storeName = 'chats') {
     getItem,
     getAll,
     update,
+    updateMsg,
     remove,
   };
 }

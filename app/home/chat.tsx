@@ -20,15 +20,13 @@ const roles: GetProp<typeof Bubble.List, 'roles'> = {
 };
 
 const Chat = () => {
-  const {loading, abortController, sendMessage} = useChatSessions()
-  const {currentSession, currentSessionID} = useSessionStore()
+  const {abort, sendMessage} = useChatSessions()
+  const {currentSession, currentSessionID, loading} = useSessionStore()
 
   const [content, setContent] = React.useState('');
   useEffect(() => {
-    console.log('currentSession', currentSession)
     if (currentSession.length > 0)
       setShowWelcome(false)
-
   }, [currentSession]);
 
   useEffect(() => {
@@ -37,7 +35,6 @@ const Chat = () => {
 
 
   const handleSendMessage = async (nextContent) => {
-    console.log('handleSendMessage', nextContent)
     setShowWelcome(false)
     await sendMessage(nextContent)
     setContent('');
@@ -53,11 +50,7 @@ const Chat = () => {
             <Bubble.List
               style={{height: '100%'}}
               roles={roles}
-              items={currentSession.map(({id, message}) => ({
-                key: id,
-                role: message.role,
-                content: message.content,
-              }))}
+              items={currentSession}
             />
           </div>
       }
@@ -66,9 +59,7 @@ const Chat = () => {
         <Sender
           loading={loading}
           value={content}
-          onCancel={() => {
-            abortController?.current?.abort?.();
-          }}
+          onCancel={abort}
           onChange={setContent}
           onSubmit={handleSendMessage}
         />

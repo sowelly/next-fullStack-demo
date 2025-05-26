@@ -1,12 +1,27 @@
 import React, {useEffect, useRef, useState} from "react";
 import {useIndexedDB} from "../../../hooks/useIndexedDB";
 import {ChatType} from "../page";
-import {useXAgent, useXChat} from '@ant-design/x';
+import OpenAI from 'openai'
 import {useSessionStore} from "../../../store/sesseionStore";
 
-const BASE_URL = 'https://api.siliconflow.cn/v1/chat/completions';
+const BASE_URL = 'https://api.siliconflow.cn/v1';
 const MODEL = 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B';
 const API_KEY = process.env.NEXT_PUBLIC_SILICONFLOW_API_KEY;
+
+
+const streamFromRes = (response): string => {
+  let content = response.choices?.[0]?.delta.content
+  console.log('content', content)
+
+  return content
+}
+
+
+const client = new OpenAI({
+  baseURL: BASE_URL,
+  apiKey: API_KEY,
+  dangerouslyAllowBrowser: true
+})
 
 type MessageType = {
   role: string;
@@ -36,7 +51,7 @@ function sideDataFormat(data) {
       ...previousValue,
       {
         key: currentValue.id,
-        label: currentValue.message?.[0]?.message?.content,
+        label: currentValue.message?.[0]?.content,
         timestamp: currentValue.id,
         group: time
       }
@@ -46,66 +61,18 @@ function sideDataFormat(data) {
 }
 
 const useChatSessions = () => {
-  const {ready, getAll, add, getItem, update} = useIndexedDB<ChatType>('chat_db', 'chats');
-
-  const {currentSessionID, setCurrentSessionID, setSessionList, setCurrentSession} = useSessionStore()
+  const {ready, getAll, add, getItem, update, updateMsg} = useIndexedDB<ChatType>('chat_db', 'chats');
+  const currentSessionID = useSessionStore(s => s.currentSessionID)
+  const setCurrentSessionID = useSessionStore(s => s.setCurrentSessionID)
+  const setSessionList = useSessionStore(s => s.setSessionList)
+  const setCurrentSession = useSessionStore(s => s.setCurrentSession)
+  const currentSession = useSessionStore(s => s.currentSession)
 
   const [isNewChat, setIsNewChat] = useState(true);
-
-  const [agent] = useXAgent<MessageType>({
-    baseURL: BASE_URL,
-    model: MODEL,
-    dangerouslyApiKey: `Bearer ${API_KEY}`,
-    /** 🔥🔥 Its dangerously! */
-  });
-
-  const abortController = useRef<AbortController | null>(null);
-
-  const {onRequest, messages, setMessages} = useXChat({
-    agent,
-    requestFallback: (_, {error}) => {
-      if (error.name === 'AbortError') {
-        return {
-          content: 'Request is aborted',
-          role: 'assistant',
-        };
-      }
-      return {
-        content: 'Request failed, please try again!',
-        role: 'assistant',
-      };
-    },
-    requestPlaceholder: () => {
-      return {
-        content: 'Please wait...',
-        role: 'assistant',
-      };
-    },
-    transformMessage: (info) => {
-      const {originMessage, chunk} = info || {};
-      let currentText = ''
-      try {
-        if (chunk?.data && !chunk?.data.includes('DONE')) {
-          const message = JSON.parse(chunk?.data);
-          currentText = !message?.choices?.[0].delta?.reasoning_content
-            ? ''
-            : message?.choices?.[0].delta?.reasoning_content;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-      return {
-        content: (originMessage?.content || '') + currentText,
-        role: 'assistant',
-      }
-    },
-    resolveAbortController: (controller) => {
-      abortController.current = controller;
-    },
-  });
-
   let updateSourceRef = useRef<'ai' | 'history'>('ai')
+
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
+
 
   useEffect(() => {
     if (ready) {
@@ -113,19 +80,12 @@ const useChatSessions = () => {
     }
   }, [ready]);
 
-  useEffect(() => {
-    if (messages.length > 0 && updateSourceRef.current === 'ai') {
-      insertTDB(messages)
-    }
-  }, [messages, updateSourceRef.current]);
-
   const fetchAll = async () => {
     const res = await getAll()
     if (res.length === 0) return
 
     const formatted = sideDataFormat(res.reverse())
     const activeID = formatted[0]?.key
-    console.log('activeID', activeID)
     updateSourceRef.current = 'history'
 
     getSession(activeID)
@@ -133,66 +93,142 @@ const useChatSessions = () => {
     setCurrentSessionID(activeID)
   }
   const switchSession = (id: string) => {
-    console.log('switchSession')
     setCurrentSessionID(id)
     getSession(id)
     updateSourceRef.current = 'history'
   }
-  useEffect(() => {
-    setCurrentSession([...messages])
-  }, [messages]);
+
 
   const getSession = async (id) => {
     const res = await getItem(id)
-    console.log('res?.message', res?.message)
-    setMessages(res?.message)
+    setCurrentSession(res?.message)
   }
 
+  useEffect(() => {
+    setIsNewChat(currentSessionID === '')
+  }, [currentSessionID]);
+  const abort = () => {
+    abortController?.abort()
+  }
   const sendMessage = async (nextContent: string) => {
-    console.log('sendMessage', nextContent)
     updateSourceRef.current = 'ai'
-    const timestamp = Date.now().toString()
-    if (isNewChat) {
-      await add({id: timestamp, message: []})
-      setCurrentSessionID(timestamp)
-      setIsNewChat(false)
-    }
-    const sessionID = isNewChat ? timestamp : currentSessionID
+    const sessionID = isNewChat ? Date.now().toString() : currentSessionID
 
-    onRequest({
-      stream: true,
-      params: {
-        sessionID,
-      },
-      message: {
+    setAbortController(new AbortController())
+
+    if (isNewChat) {
+      await add({id: sessionID, message: []})
+      setCurrentSessionID(sessionID)
+    }
+    setCurrentSession(prev => [...prev, {
         role: 'user',
-        content: nextContent,
+        content: nextContent
+      }, {
+        role: 'assistant',
+        content: ''
+      }]
+    )
+
+    await insertTDB({
+        role: 'user',
+        content: nextContent
       },
-    });
+      sessionID)
+    await insertTDB({
+        role: 'assistant',
+        content: '...'
+      },
+      sessionID)
+    onRequest({content: nextContent, sessionID});
   }
+
+
+  const onRequest = async ({content, sessionID}) => {
+    const completions = await client.chat.completions.create({
+      model: MODEL,
+      stream: true,
+      messages: [
+        {
+          role: 'user',
+          content,
+          sessionID,
+        }
+      ]
+    }, {
+      signal: abortController?.signal
+    })
+
+    try {
+      let fullReply = ''
+      for await (const chunk of completions) {
+        const delta = chunk.choices?.[0]?.delta
+        const text = delta?.content || '';
+        if (!text) continue;
+        fullReply += text
+
+        // 为了及时的每个字更新上去
+        await new Promise(resolve => setTimeout(resolve, 0))
+
+        setCurrentSession(prev => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+          const last = updated[lastIndex];
+
+          if (last?.role === 'assistant') {
+            updated[lastIndex] = {
+              ...last,
+              content: fullReply
+            };
+          }
+
+          return updated;
+        })
+      }
+
+      console.log('finish')
+
+      await insertTDB({role: 'assistant', content: fullReply}, sessionID, true)
+      setAbortController(null)
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        console.warn('请求被用户终止');
+      } else {
+        console.error('流式出错：', e);
+      }
+    }
+  }
+
   const newSession = () => {
-    setIsNewChat(true)
-    setMessages([])
     setCurrentSession([])
     setCurrentSessionID('')
   }
 
-  const insertTDB = async (msg) => {
-    console.log('insertTDB', currentSessionID, msg)
+  const insertTDB = async (msg: MessageType, sessionID, isUpdateAssistantReplay?: boolean) => {
+    console.log('insertTDB', sessionID, msg)
+    const row = await getItem(sessionID)
+    let newMessage = []
+    if (isUpdateAssistantReplay) {
+      const targetIndex: number = row?.message.findLastIndex((r: MessageType) => r.content === '...' && r.role === 'assistant')
+      if (targetIndex !== -1) {
+        row?.message.splice(targetIndex, 1, msg)
+      }
+      newMessage = [...row?.message]
+    } else {
+      newMessage = [...row?.message, msg]
+    }
 
-    await update(currentSessionID, {id: currentSessionID, message: msg})
+    await update(sessionID, {id: sessionID, message: newMessage})
     await fetchAll()
   }
 
 
   return {
-    loading: agent.isRequesting(),
     sendMessage,
-    isNewChat,
-    abortController,
+    abort,
+    isNewChat: currentSessionID === '',
     switchSession,
     newSession,
-    insertTDB
+    insertTDB,
   }
 }
 export default useChatSessions
