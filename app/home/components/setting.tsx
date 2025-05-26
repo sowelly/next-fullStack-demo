@@ -12,6 +12,7 @@ import {
 } from '@ant-design/pro-components';
 import {message} from 'antd';
 import React, {useRef} from 'react';
+import {userConfigStore} from "../../../store/userConfigStore";
 
 const waitTime = (time: number = 100) => {
   return new Promise((resolve) => {
@@ -27,16 +28,13 @@ interface ISettingProps {
 
 const Setting: React.FC<ISettingProps> = ({setCallback}) => {
     const formRef = useRef<ProFormInstance | null>(null);
+    const setApiKey = userConfigStore(s => s.setApiKey)
+    const setPassword = userConfigStore(s => s.setPassword)
+    const setUsername = userConfigStore(s => s.setUsername)
 
     const onFinish = async () => {
-      console.log('onFinish',)
       message.success('提交成功');
       setCallback()
-    }
-
-    const login = () => {
-
-
     }
 
     return (
@@ -62,8 +60,10 @@ const Setting: React.FC<ISettingProps> = ({setCallback}) => {
               description: '一键快捷登录或注册',
             }}
             onFinish={async () => {
-              console.log(formRef.current?.getFieldsValue());
+              const {username, password} = formRef.current?.getFieldsValue()
               await waitTime(2000);
+              setUsername(username)
+              setPassword(password)
               return true;
             }}
           >
@@ -93,7 +93,8 @@ const Setting: React.FC<ISettingProps> = ({setCallback}) => {
               description: '输入通用siliconflow key',
             }}
             onFinish={async () => {
-              console.log(formRef.current?.getFieldsValue());
+              const {siliconflow} = formRef.current?.getFieldsValue()
+              setApiKey(siliconflow)
               return true;
             }}
           >

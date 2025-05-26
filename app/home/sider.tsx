@@ -30,16 +30,20 @@ const style = {
   width: 256,
 };
 
+
 export default () => {
   const {switchSession} = useChatSessions()
   const {sessionList, currentSessionID} = useSessionStore()
 
+
   return <div className={cn('h-full overflow-y-auto')}>
-    <div className={cn('flex sticky top-0')}><ToolBox/></div>
+    <div className={cn('flex sticky top-0   bg-[#f5f5f5]')}><ToolBox/></div>
     <Conversations
       style={style}
       groupable={groupable}
       onActiveChange={(v) => switchSession(v)}
-      activeKey={currentSessionID} items={sessionList}/>
+      activeKey={currentSessionID}
+      items={sessionList}
+    />
   </div>
 }
